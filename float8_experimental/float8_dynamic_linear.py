@@ -6,11 +6,12 @@
 """
 A wrapper around a `torch.nn.Linear` module which does fp8 compute.
 """
-import torch
 from typing import Optional
 
+import torch
+
 from float8_experimental.float8_tensor import Float8Tensor, to_fp8_no_autograd
-from float8_experimental.float8_utils import IS_AMD, tensor_to_scale, FP8Dtypes
+from float8_experimental.float8_utils import FP8Dtypes, tensor_to_scale
 
 
 @torch._dynamo.allow_in_graph
@@ -21,12 +22,7 @@ class NoopFwToFloat8E5M2Bw(torch.autograd.Function):
     """
 
     @staticmethod
-    def forward(
-        ctx,
-        tensor,
-        emulate: bool,
-        fp8_dtype_bw: torch.dtype
-    ):
+    def forward(ctx, tensor, emulate: bool, fp8_dtype_bw: torch.dtype):
         ctx.emulate = emulate
         ctx.fp8_dtype_bw = fp8_dtype_bw
         return tensor
@@ -34,7 +30,9 @@ class NoopFwToFloat8E5M2Bw(torch.autograd.Function):
     @staticmethod
     def backward(ctx, gradY):
         gradY_scale = tensor_to_scale(gradY, ctx.fp8_dtype_bw)
-        fp8_tensor = to_fp8_no_autograd(gradY, gradY_scale, ctx.fp8_dtype_bw, ctx.emulate)
+        fp8_tensor = to_fp8_no_autograd(
+            gradY, gradY_scale, ctx.fp8_dtype_bw, ctx.emulate
+        )
         return fp8_tensor, None, None
 
 
@@ -63,7 +61,9 @@ class Float8DynamicLinear(torch.nn.Linear):
     conversion to fp8 of the input and weight tensors.
     """
 
-    def __init__(self, use_activation_hooks: bool, fp8_dtype: FP8Dtypes, **super_kwargs):
+    def __init__(
+        self, use_activation_hooks: bool, fp8_dtype: FP8Dtypes, **super_kwargs
+    ):
         """
         Args:
             use_activation_hooks (bool): whether to use activation hooks for casting to and from float8
@@ -120,7 +120,11 @@ class Float8DynamicLinear(torch.nn.Linear):
 
     @classmethod
     def from_float(
-        cls, mod, emulate: bool = False, use_activation_hooks: bool = False, fp8_dtypes: Optional[FP8Dtypes] = None
+        cls,
+        mod,
+        emulate: bool = False,
+        use_activation_hooks: bool = False,
+        fp8_dtypes: Optional[FP8Dtypes] = None,
     ) -> "Float8DynamicLinear":
         """
         Create an nn.Linear with fp8 compute from a regular nn.Linear

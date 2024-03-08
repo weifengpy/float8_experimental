@@ -14,7 +14,7 @@ owners to implement their own UEX.
 
 import dataclasses
 
-from typing import Optional, Literal
+from typing import Literal, Optional
 
 import float8_experimental.config as config
 
@@ -26,8 +26,8 @@ from float8_experimental.float8_utils import (
     amax_history_to_scale,
     E4M3_MAX_POS,
     E5M2_MAX_POS,
+    FP8Dtypes,
     tensor_to_amax,
-    FP8Dtypes
 )
 
 
@@ -316,7 +316,13 @@ class Float8Linear(Float8LinearMixin, torch.nn.Linear):
         return y
 
     @classmethod
-    def from_float(cls, mod, emulate: bool = False, use_activation_hooks: bool = False, fp8_dtypes: Optional[FP8Dtypes] = None):
+    def from_float(
+        cls,
+        mod,
+        emulate: bool = False,
+        use_activation_hooks: bool = False,
+        fp8_dtypes: Optional[FP8Dtypes] = None,
+    ):
         """
         Create an nn.Linear with fp8 compute from a regular nn.Linear
 

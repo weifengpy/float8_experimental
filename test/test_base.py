@@ -8,6 +8,7 @@ import random
 import unittest
 import warnings
 from typing import Optional
+
 import pytest
 
 import torch
@@ -24,17 +25,16 @@ from float8_experimental.float8_linear_utils import (
 from float8_experimental.float8_python_api import mm_float8
 from float8_experimental.float8_tensor import Float8Tensor
 from float8_experimental.float8_utils import (
-    E5M2_FNUZ_MAX_POS,
     amax_to_scale,
     compute_error,
-    E4M3_MAX_POS,
     E4M3_FNUZ_MAX_POS,
-    E5M2_MAX_POS,
+    E4M3_MAX_POS,
     E5M2_FNUZ_MAX_POS,
+    E5M2_MAX_POS,
     FP16_MAX_POS,
-    tensor_to_scale,
-    IS_AMD,
     FP8Dtypes,
+    IS_AMD,
+    tensor_to_scale,
 )
 
 random.seed(0)
@@ -65,9 +65,10 @@ class TestFloat8Linear:
         emulate: bool,
         use_activation_hooks: bool,
         fp8_dtypes: Optional[FP8Dtypes] = None,
-
     ):
-        m_fp8 = get_float8_linear(linear_type, m_ref, emulate, use_activation_hooks, fp8_dtypes)
+        m_fp8 = get_float8_linear(
+            linear_type, m_ref, emulate, use_activation_hooks, fp8_dtypes
+        )
         for _ in range(2):
             if linear_requires_sync(linear_type):
                 sync_float8_amax_and_scale_history(m_fp8)
@@ -95,7 +96,12 @@ class TestFloat8Linear:
             ]
             for buffer_name in amax_buffer_names:
                 buffer_value = getattr(m_fp8, buffer_name)
-                for init_val in (E4M3_MAX_POS, E5M2_MAX_POS, E4M3_FNUZ_MAX_POS, E5M2_FNUZ_MAX_POS):
+                for init_val in (
+                    E4M3_MAX_POS,
+                    E5M2_MAX_POS,
+                    E4M3_FNUZ_MAX_POS,
+                    E5M2_FNUZ_MAX_POS,
+                ):
                     assert torch.ne(
                         buffer_value, torch.tensor(init_val)
                     ), f"{buffer_name} not filled, current value {buffer_value}"
@@ -147,10 +153,16 @@ class TestFloat8Linear:
                     f"CUDA capability {torch.cuda.get_device_capability()} < (9.0)"
                 )
                 pytest.skip()
-        fp8_dtypes = FP8Dtypes() if not IS_AMD else FP8Dtypes(torch.float8_e4m3fnuz, torch.float8_e5m2fnuz)
+        fp8_dtypes = (
+            FP8Dtypes()
+            if not IS_AMD
+            else FP8Dtypes(torch.float8_e4m3fnuz, torch.float8_e5m2fnuz)
+        )
         x = torch.randn(*x_shape, device="cuda")
         m_ref = nn.Linear(16, 32, bias=False, device="cuda")
-        self._test_linear_impl(x, m_ref, linear_type, emulate, use_activation_hooks, fp8_dtypes)
+        self._test_linear_impl(
+            x, m_ref, linear_type, emulate, use_activation_hooks, fp8_dtypes
+        )
 
     @pytest.mark.parametrize("emulate", [True, False] if is_H100 else [True])
     @pytest.mark.parametrize("x_shape", [(16, 16), (2, 16, 16), (3, 2, 16, 16)])

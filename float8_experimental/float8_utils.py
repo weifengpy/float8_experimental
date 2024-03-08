@@ -4,8 +4,8 @@
 # This source code is licensed under the BSD 3-Clause license found in the
 # LICENSE file in the root directory of this source tree.
 
-from typing import Literal
 from dataclasses import dataclass
+from typing import Literal
 
 import torch
 import torch.distributed as dist
@@ -30,9 +30,11 @@ IS_AMD = torch.cuda.is_available() and torch.version.hip is not None
 
 @dataclass(frozen=True)
 class FP8Dtypes:
-    """ Defines the fp8 dtypes to be used in forward and backwrad computations"""
+    """Defines the fp8 dtypes to be used in forward and backwrad computations"""
+
     fp8_dtype_fw: torch.dtype = torch.float8_e4m3fn
     fp8_dtype_bw: torch.dtype = torch.float8_e5m2
+
 
 @torch.no_grad()
 def amax_to_scale(

@@ -14,7 +14,7 @@ import torch.nn as nn
 from float8_experimental.float8_dynamic_linear import Float8DynamicLinear
 from float8_experimental.float8_linear import Float8Linear
 
-from float8_experimental.float8_utils import amax_history_to_scale_stack
+from float8_experimental.float8_utils import amax_history_to_scale_stack, FP8Dtypes
 from torch.distributed._functional_collectives import all_reduce, AsyncCollectiveTensor
 
 log = logging.getLogger(__name__)
@@ -34,6 +34,7 @@ def get_float8_linear(
     linear_ref: torch.nn.Linear,
     emulate: bool = False,
     use_activation_hooks: bool = False,
+    fp8_dtypes: Optional[FP8Dtypes] = None,
 ):
     """Returns a Float8Linear module of the given type, initialized from linear_ref.
     Args:
@@ -41,6 +42,7 @@ def get_float8_linear(
         linear_ref: The linear module to initialize from.
         emulate: Whether to emulate the fp8 matmul logic in float32.
         use_activation_hooks: Whether to use activation hooks for dynamic linear.
+        fp8_dtypes: The FP8 dtypes to use.
     """
     LINEAR_TYPE_MAP = {
         LinearType.DELAYED: Float8Linear,
@@ -54,6 +56,7 @@ def get_float8_linear(
         copy.deepcopy(linear_ref),
         emulate=emulate,
         use_activation_hooks=use_activation_hooks,
+        fp8_dtypes=fp8_dtypes,
     )
 
 

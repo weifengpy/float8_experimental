@@ -7,9 +7,10 @@
 A wrapper around a `torch.nn.Linear` module which does fp8 compute.
 """
 import torch
+from typing import Optional
 
 from float8_experimental.float8_tensor import Float8Tensor, to_fp8_no_autograd
-from float8_experimental.float8_utils import IS_AMD, tensor_to_scale
+from float8_experimental.float8_utils import IS_AMD, tensor_to_scale, FP8Dtypes
 
 
 @torch._dynamo.allow_in_graph
@@ -24,16 +25,17 @@ class NoopFwToFloat8E5M2Bw(torch.autograd.Function):
         ctx,
         tensor,
         emulate: bool,
+        fp8_dtype_bw: torch.dtype
     ):
         ctx.emulate = emulate
+        ctx.fp8_dtype_bw = fp8_dtype_bw
         return tensor
 
     @staticmethod
     def backward(ctx, gradY):
-        fp8_dtype = torch.float8_e5m2fnuz if IS_AMD else torch.float8_e5m2
-        gradY_scale = tensor_to_scale(gradY, fp8_dtype)
-        fp8_tensor = to_fp8_no_autograd(gradY, gradY_scale, fp8_dtype, ctx.emulate)
-        return fp8_tensor, None
+        gradY_scale = tensor_to_scale(gradY, ctx.fp8_dtype_bw)
+        fp8_tensor = to_fp8_no_autograd(gradY, gradY_scale, ctx.fp8_dtype_bw, ctx.emulate)
+        return fp8_tensor, None, None
 
 
 def cast_x_to_float8_e4m3fn_pre_hook(module, args):
@@ -61,18 +63,23 @@ class Float8DynamicLinear(torch.nn.Linear):
     conversion to fp8 of the input and weight tensors.
     """
 
-    def __init__(self, use_activation_hooks: bool, **super_kwargs):
+    def __init__(self, use_activation_hooks: bool, fp8_dtype: FP8Dtypes, **super_kwargs):
         """
         Args:
             use_activation_hooks (bool): whether to use activation hooks for casting to and from float8
+            fp8_dtype (torch.dtype): the dtype to use for fp8
         """
         super().__init__(**super_kwargs)
 
         self.use_activation_hooks = use_activation_hooks
+        # I want to store the dataclass but I think that will break torch compile
+        self.fp8_dtype_fw = fp8_dtype.fp8_dtype_fw
+        self.fp8_dtype_bw = fp8_dtype.fp8_dtype_bw
+        self.emulate = False
 
-    def forward(self, x):
+    def forward(self, input):
         # cast x to float8_e4m3fn if not using activation hooks
-        x_fp8 = x if self.use_activation_hooks else self.cast_to_float8_e4m3(x)
+        x_fp8 = input if self.use_activation_hooks else self.cast_to_float8_e4m3(input)
 
         # cast w to float8_e4m3fn
         w_fp8 = self.cast_to_float8_e4m3(self.weight)
@@ -94,10 +101,9 @@ class Float8DynamicLinear(torch.nn.Linear):
         - On AMD Gpus, it casts to torch.float8_e4m3fnuz
 
         """
-        fp8_dtype = torch.float8_e4m3fnuz if IS_AMD else torch.float8_e4m3fn
-        scale = tensor_to_scale(inpt_tensor, fp8_dtype)
+        scale = tensor_to_scale(inpt_tensor, self.fp8_dtype_fw)
         return Float8Tensor.to_float8(
-            inpt_tensor, scale, fp8_dtype, emulate=self.emulate
+            inpt_tensor, scale, self.fp8_dtype_fw, emulate=self.emulate
         )
 
     def cast_to_float8_e5m2_bw(self, gradY: torch.Tensor) -> torch.Tensor:
@@ -110,11 +116,11 @@ class Float8DynamicLinear(torch.nn.Linear):
         - On AMD Gpus, it casts to torch.float8_e4m3fnuz
 
         """
-        return NoopFwToFloat8E5M2Bw.apply(gradY, self.emulate)
+        return NoopFwToFloat8E5M2Bw.apply(gradY, self.emulate, self.fp8_dtype_bw)
 
     @classmethod
     def from_float(
-        cls, mod, emulate: bool = False, use_activation_hooks: bool = False
+        cls, mod, emulate: bool = False, use_activation_hooks: bool = False, fp8_dtypes: Optional[FP8Dtypes] = None
     ) -> "Float8DynamicLinear":
         """
         Create an nn.Linear with fp8 compute from a regular nn.Linear
@@ -124,13 +130,15 @@ class Float8DynamicLinear(torch.nn.Linear):
             emulate (bool): whether to emulate fp8 matmul logic in float32
             use_activation_hooks (bool): whether to use activation hooks for casting to and from float8
         """
+        if fp8_dtypes is None:
+            fp8_dtypes = FP8Dtypes()
         with torch.device("meta"):
             super_kwargs = {
                 "in_features": mod.in_features,
                 "out_features": mod.out_features,
                 "bias": False,
             }
-            new_mod = cls(use_activation_hooks, **super_kwargs)
+            new_mod = cls(use_activation_hooks, fp8_dtypes, **super_kwargs)
         new_mod.weight = mod.weight
         new_mod.bias = mod.bias
         new_mod.emulate = emulate

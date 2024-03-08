@@ -5,6 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 
 from typing import Literal
+from dataclasses import dataclass
 
 import torch
 import torch.distributed as dist
@@ -26,6 +27,12 @@ EPS = 1e-12
 
 IS_AMD = torch.cuda.is_available() and torch.version.hip is not None
 
+
+@dataclass(frozen=True)
+class FP8Dtypes:
+    """ Defines the fp8 dtypes to be used in forward and backwrad computations"""
+    fp8_dtype_fw: torch.dtype = torch.float8_e4m3fn
+    fp8_dtype_bw: torch.dtype = torch.float8_e5m2
 
 @torch.no_grad()
 def amax_to_scale(
@@ -61,7 +68,7 @@ def amax_to_scale(
 @torch.no_grad()
 def amax_history_to_scale(
     amax_history: torch.Tensor,
-    float8_dtype: torch.Tensor,
+    float8_dtype: torch.dtype,
     orig_dtype: torch.dtype,
     history_to_scale_fn_type: Literal["max"],
 ):

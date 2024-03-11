@@ -69,6 +69,7 @@ class TestFloat8Linear:
         m_fp8 = get_float8_linear(
             linear_type, m_ref, emulate, use_activation_hooks, fp8_dtypes
         )
+        y_ref, y_fp8 = None, None
         for _ in range(2):
             if linear_requires_sync(linear_type):
                 sync_float8_amax_and_scale_history(m_fp8)
@@ -77,7 +78,7 @@ class TestFloat8Linear:
             y_ref = m_ref(x)
             y_ref.sum().backward()
 
-        assert y_ref.shape == y_fp8.shape
+            assert y_ref.shape == y_fp8.shape
 
         y_sqnr = compute_error(y_ref, y_fp8)
         g_sqnr = compute_error(m_ref.weight.grad, m_fp8.weight.grad)

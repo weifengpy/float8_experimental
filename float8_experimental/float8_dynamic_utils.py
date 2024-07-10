@@ -86,7 +86,7 @@ class WeightWithDynamicFloat8CastTensor(torch.Tensor):
         cls,
         tensor: torch.Tensor,
         mm_config: ScaledMMConfig,
-        amax: Optional[torch.Tensor] = None,
+        precomputed_scale: Optional[torch.Tensor] = None,
     ):
         return torch.Tensor._make_wrapper_subclass(
             cls,
@@ -110,7 +110,7 @@ class WeightWithDynamicFloat8CastTensor(torch.Tensor):
         self._tensor = tensor
         self._mm_config = mm_config
         # for dynamic scaling
-        # `precompute_float8_amax_for_fsdp` calculates scales
+        # `precompute_float8_scale_for_fsdp` calculates scales
         # for all float8 parameters after optimizer step
         self._precomputed_scale = precomputed_scale
 
